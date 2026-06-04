@@ -1,48 +1,70 @@
 name: ICML hotel monitor
 
+# Reliability design: GitHub's scheduled cron is unreliable for short intervals, so instead of
+# relying on it we run a long-lived job that checks every 5 min via an internal loop (exact sleep).
+# At the end of its window the job re-launches itself (workflow_dispatch via GITHUB_TOKEN, which is
+# exempt from the no-recursion rule), giving near-seamless handoff. The schedule below is only a
+# keepalive that recovers coverage if a chain ever dies. Public repo => unlimited free Actions minutes.
+
 on:
   schedule:
-    # Every ~5 min (GitHub's minimum). Actual firing may be delayed under load.
-    - cron: "*/5 * * * *"
+    - cron: "8,23,38,53 * * * *"   # keepalive ~every 15 min (off the :00/:30 peak marks)
   workflow_dispatch:
     inputs:
       test:
-        description: "Send a TEST ntfy alert instead of a real availability check"
+        description: "Send a TEST ntfy alert instead of monitoring"
         type: boolean
         default: false
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: icml-hotel-monitor
-  cancel-in-progress: false
+  cancel-in-progress: false      # never kill a running chain; extra triggers wait as a single pending run
 
 jobs:
-  check:
+  monitor:
     runs-on: ubuntu-latest
+    timeout-minutes: 350           # under the 6h hard limit; loop exits at ~330 min, leaving room to hand off
     steps:
       - uses: actions/checkout@v5
 
-      - name: Check availability
+      - name: Test alert (manual --test only)
+        if: ${{ inputs.test == true }}
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
-          TEST_MODE: ${{ inputs.test }}
-        run: |
-          if [ "$TEST_MODE" = "true" ]; then
-            python3 check.py --test
-          else
-            python3 check.py
-          fi
+        run: python3 check.py --test
 
-      - name: Persist state on change
+      - name: Monitor loop — check every 5 min
+        if: ${{ inputs.test != true }}
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: |
-          if ! git diff --quiet -- state.json; then
-            git config user.name "icml-hotel-bot"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add state.json
-            git commit -m "state: $(date -u +%FT%TZ)"
-            git push
-          else
-            echo "no state change"
-          fi
+          set +e
+          git config user.name "icml-hotel-bot"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          END=$(( $(date +%s) + 330*60 ))   # ~5.5h window, then hand off to the next chain
+          n=0
+          while [ "$(date +%s)" -lt "$END" ]; do
+            n=$((n+1))
+            echo "----- check #$n  $(date -u +%FT%TZ) -----"
+            python3 check.py
+            if ! git diff --quiet -- state.json; then
+              git add state.json
+              git commit -m "state: $(date -u +%FT%TZ)"
+              git push || { git pull --rebase --autostash && git push; } || echo "push failed (continuing)"
+            fi
+            sleep 300
+          done
+          echo "window complete; handing off to next cycle"
+
+      - name: Re-launch next cycle (chain handoff)
+        if: ${{ inputs.test != true }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run "ICML hotel monitor" --ref main \
+            && echo "next cycle dispatched" \
+            || echo "redispatch failed; the keepalive cron will recover coverage"
