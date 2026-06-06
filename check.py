@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """ICML 2026 hotel availability check — runs on GitHub Actions every ~5 min.
 
-Polls the Resiada housing API for the two target hotels on the night of
-Jul 8 -> Jul 9, 2026 and pushes an ntfy.sh alert the moment a room opens.
+Polls the Resiada housing API for the target hotel on the night of
+Jul 9 -> Jul 10, 2026 and pushes an ntfy.sh alert the moment a room opens.
 State (state.json) is committed back to the repo so alerts fire once per
 "becomes available" transition (re-alert at most every 30 min while it lasts).
 Stdlib only — no dependencies.
@@ -12,8 +12,8 @@ import json, os, sys, time, urllib.request
 API = "https://api.resiada.com/v1"
 EVENT_ID = "b5d011fc-0111-f111-a69c-002248548541"
 SUBBLOCK_ID = "c9d011fc-0111-f111-a69c-002248548541"
-CHECKIN = "2026-07-08"
-CHECKOUT = "2026-07-09"
+CHECKIN = "2026-07-09"
+CHECKOUT = "2026-07-10"
 GUESTS = 1
 BOOK_URL = "https://book.resiada.com/43rdICML2026/Attendees"
 ORIGIN = "https://book.resiada.com"
@@ -21,7 +21,6 @@ UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/120.0 Safari/537.36")
 TARGETS = [
     {"id": "fdff689e-341f-f111-9a49-000d3ae43f90", "name": "The Westin Seoul Parnas"},
-    {"id": "8bd98f73-0611-f111-a69c-002248548541", "name": "Grand InterContinental Seoul Parnas by IHG"},
 ]
 STATE_FILE = "state.json"
 REALERT = 30 * 60  # seconds; re-alert at most this often while still available
@@ -91,7 +90,7 @@ def load_state():
 def main():
     if TEST:
         ntfy("ROOM OPENED (TEST): The Westin Seoul Parnas",
-             "TEST: The Westin Seoul Parnas - rooms available for Jul 8-9 (ICML). "
+             "TEST: The Westin Seoul Parnas - rooms available for Jul 9-10 (ICML). "
              "This is a GitHub Actions channel test. Book: " + BOOK_URL)
         print("sent test alert")
         return 0
@@ -127,7 +126,7 @@ def main():
                 kind = "waitlist open"
             verb = "ROOM OPENED" if became else "still available"
             ntfy(f"{verb}: {tgt['name']}",
-                 f"{tgt['name']} - {kind} for Jul 8-9 (ICML). Book now: {BOOK_URL}")
+                 f"{tgt['name']} - {kind} for Jul 9-10 (ICML). Book now: {BOOK_URL}")
             state[tgt["id"]] = {"avail": True, "lastAlert": now}
         elif signal:
             state[tgt["id"]] = {"avail": True, "lastAlert": prev.get("lastAlert", 0)}

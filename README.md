@@ -1,10 +1,9 @@
 # ICML 2026 hotel monitor (GitHub Actions, self-looping)
 
 Cloud watcher that checks every **5 minutes**, 24/7, with your laptop off, and pushes an
-**ntfy.sh** alert to your phone the moment a room opens for **Jul 8 → 9, 2026 (1 night, 1 guest)** at:
+**ntfy.sh** alert to your phone the moment a room opens for **Jul 9 → 10, 2026 (1 night, 1 guest)** at:
 
 - The Westin Seoul Parnas
-- Grand InterContinental Seoul Parnas by IHG
 
 Booking site: https://book.resiada.com/43rdICML2026/Attendees
 Repo: https://github.com/isjakewong/icml-hotel-monitor  (**public** — see "Why public" below)
